@@ -115,6 +115,8 @@ class IsolateEnvironment {
 		std::unordered_map<v8::Persistent<v8::Value>*, std::pair<void(*)(void*), void*>> weak_persistents;
 		std::shared_ptr<CpuProfileManager> cpu_profile_manager;
 
+        v8::Global<v8::Object> buffer_prototype;
+
 	public:
 		RemoteHandle<v8::Function> error_handler;
 		std::unordered_multimap<int, struct ModuleInfo*> module_handles;
@@ -347,7 +349,17 @@ class IsolateEnvironment {
 		 */
 		void AddWeakCallback(v8::Persistent<v8::Value>* handle, void(*fn)(void*), void* param);
 		void RemoveWeakCallback(v8::Persistent<v8::Value>* handle);
+
+        inline auto GetBufferPrototype() const -> v8::Local<v8::Object> {
+            return *reinterpret_cast<v8::Local<v8::Object>*>(
+                    const_cast<v8::Global<v8::Object>*>(&buffer_prototype));
+        }
+        inline void SetBufferPrototype(v8::Local<v8::Object> value) {
+            buffer_prototype.Reset(isolate, value);
+        }
 };
+
+
 
 template <class Type>
 template <class Functor>

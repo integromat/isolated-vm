@@ -8,6 +8,7 @@
 #include "isolate/functor_runners.h"
 #include "isolate/util.h"
 #include "isolate/v8_version.h"
+#include "isolate/generic/object.h"
 
 #include <algorithm>
 #include <cstring>
@@ -170,6 +171,21 @@ auto ExternalCopy::Copy(Local<Value> value, bool transfer_out, ArrayRange transf
 			}
 		}
 
+        // Extract own properties
+        auto *env = IsolateEnvironment::GetCurrent();
+        auto *isolate = Isolate::GetCurrent();
+        Local<Context> context = isolate->GetCurrentContext();
+
+        std::unique_ptr<ExternalCopy> properties_copy = nullptr;
+        if (view->GetOwnPropertyNames(context).ToLocalChecked()->Length() > 0) {
+            Local<Object> properties = Object::New(isolate);
+            CopyObjectOwnProperties(context, properties, view);
+            properties_copy = std::make_unique<ExternalCopySerialized>(properties, transfer_list);
+        }
+
+        auto buffer_prototype = env->GetBufferPrototype();
+        bool is_node_buffer = !buffer_prototype.IsEmpty() && view->GetPrototype()->Equals(context, buffer_prototype).ToChecked();
+
 		// `Buffer()` returns a Local<ArrayBuffer> but it may be a Local<SharedArrayBuffer>
 		Local<Object> tmp = view->Buffer();
 		if (tmp->IsArrayBuffer()) {
@@ -186,11 +202,11 @@ auto ExternalCopy::Copy(Local<Value> value, bool transfer_out, ArrayRange transf
 			} else {
 				external_buffer = std::make_unique<ExternalCopyArrayBuffer>(array_buffer);
 			}
-			return std::make_unique<ExternalCopyArrayBufferView>(std::move(external_buffer), type, byte_offset, byte_length);
+			return std::make_unique<ExternalCopyArrayBufferView>(std::move(external_buffer), type, byte_offset, byte_length, std::move(properties_copy), is_node_buffer);
 		} else {
 			assert(tmp->IsSharedArrayBuffer());
 			Local<SharedArrayBuffer> array_buffer = tmp.As<SharedArrayBuffer>();
-			return std::make_unique<ExternalCopyArrayBufferView>(std::make_unique<ExternalCopySharedArrayBuffer>(array_buffer), type, view->ByteOffset(), view->ByteLength());
+			return std::make_unique<ExternalCopyArrayBufferView>(std::make_unique<ExternalCopySharedArrayBuffer>(array_buffer), type, view->ByteOffset(), view->ByteLength(), std::move(properties_copy));
 		}
 	} else if (value->IsObject()) {
 		return std::make_unique<ExternalCopySerialized>(value.As<Object>(), transfer_list);
@@ -458,15 +474,20 @@ auto ExternalCopySharedArrayBuffer::CopyInto(bool /*transfer_in*/) -> Local<Valu
  */
 ExternalCopyArrayBufferView::ExternalCopyArrayBufferView(
 	std::unique_ptr<ExternalCopyAnyBuffer> buffer,
-	ViewType type, size_t byte_offset, size_t byte_length
+	ViewType type, size_t byte_offset, size_t byte_length,
+    std::unique_ptr<ExternalCopy> properties,
+    bool is_node_buffer
 ) :
 	ExternalCopy(sizeof(ExternalCopyArrayBufferView)),
 	buffer(std::move(buffer)),
-	type(type),
-	byte_offset(byte_offset), byte_length(byte_length) {}
+    properties(std::move(properties)),
+    is_node_buffer(is_node_buffer),
+    type(type),
+	byte_offset(byte_offset),
+    byte_length(byte_length) {}
 
 template <typename T>
-auto NewTypedArrayView(Local<T> buffer, ExternalCopyArrayBufferView::ViewType type, size_t byte_offset, size_t byte_length) -> Local<Value> {
+auto NewTypedArrayView(Local<T> buffer, ExternalCopyArrayBufferView::ViewType type, size_t byte_offset, size_t byte_length) -> Local<Object> {
 	switch (type) {
 		case ExternalCopyArrayBufferView::ViewType::Uint8:
 			return Uint8Array::New(buffer, byte_offset, byte_length >> 0);
@@ -486,6 +507,10 @@ auto NewTypedArrayView(Local<T> buffer, ExternalCopyArrayBufferView::ViewType ty
 			return Float32Array::New(buffer, byte_offset, byte_length >> 2);
 		case ExternalCopyArrayBufferView::ViewType::Float64:
 			return Float64Array::New(buffer, byte_offset, byte_length >> 3);
+		case ExternalCopyArrayBufferView::ViewType::BigInt64Array:
+			return BigInt64Array::New(buffer, byte_offset, byte_length >> 3);
+		case ExternalCopyArrayBufferView::ViewType::BigUint64Array:
+			return BigUint64Array::New(buffer, byte_offset, byte_length >> 3);
 		case ExternalCopyArrayBufferView::ViewType::DataView:
 			return DataView::New(buffer, byte_offset, byte_length);
 		default:
@@ -494,12 +519,29 @@ auto NewTypedArrayView(Local<T> buffer, ExternalCopyArrayBufferView::ViewType ty
 }
 
 auto ExternalCopyArrayBufferView::CopyInto(bool transfer_in) -> Local<Value> {
-	Local<Value> buffer = this->buffer->CopyInto(transfer_in);
-	if (buffer->IsArrayBuffer()) {
-		return NewTypedArrayView(buffer.As<ArrayBuffer>(), type, byte_offset, byte_length);
+	Local<Value> buffer_copy = buffer->CopyInto(transfer_in);
+    Local<Object> view;
+	if (buffer_copy->IsArrayBuffer()) {
+		view = NewTypedArrayView(buffer_copy.As<ArrayBuffer>(), type, byte_offset, byte_length);
 	} else {
-		return NewTypedArrayView(buffer.As<SharedArrayBuffer>(), type, byte_offset, byte_length);
+        view = NewTypedArrayView(buffer_copy.As<SharedArrayBuffer>(), type, byte_offset, byte_length);
 	}
+
+    if (is_node_buffer && type == ViewType::Uint8) {
+        auto *env = IsolateEnvironment::GetCurrent();
+        auto buffer_prototype = env->GetBufferPrototype();
+        if (!buffer_prototype.IsEmpty() && buffer_prototype->IsObject()) {
+            view->SetPrototype(Isolate::GetCurrent()->GetCurrentContext(), buffer_prototype).Check();
+        }
+    }
+
+    if (properties) {
+        Local<Context> context = Isolate::GetCurrent()->GetCurrentContext();
+        Local<Object> properties_copy = properties->CopyInto(transfer_in).As<Object>();
+        CopyObjectOwnProperties(context, view, properties_copy);
+    }
+
+    return view;
 }
 
 } // namespace ivm

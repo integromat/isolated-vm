@@ -106,11 +106,13 @@ class ExternalCopyArrayBufferView : public ExternalCopy {
 
 	private:
 		std::unique_ptr<ExternalCopyAnyBuffer> buffer;
+        std::unique_ptr<ExternalCopy> properties;
+        bool is_node_buffer;
 		ViewType type;
 		size_t byte_offset, byte_length;
 
 	public:
-		ExternalCopyArrayBufferView(std::unique_ptr<ExternalCopyAnyBuffer> buffer, ViewType type, size_t byte_offset, size_t byte_length);
+		ExternalCopyArrayBufferView(std::unique_ptr<ExternalCopyAnyBuffer> buffer, ViewType type, size_t byte_offset, size_t byte_length, std::unique_ptr<ExternalCopy> properties = nullptr, bool is_node_buffer = false);
 		auto CopyInto(bool transfer_in = false) -> v8::Local<v8::Value> final;
 };
 

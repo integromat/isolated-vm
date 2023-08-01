@@ -448,6 +448,8 @@ IsolateEnvironment::~IsolateEnvironment() {
 			ExchangeDefault(scheduler_lock->sync_interrupts);
 			ExchangeDefault(scheduler_lock->handle_tasks);
 			ExchangeDefault(scheduler_lock->tasks);
+
+            buffer_prototype.Reset();
 		}
 		{
 			// Dispose() will call destructors for external strings and array buffers, so this lock sets the
