@@ -351,8 +351,7 @@ class IsolateEnvironment {
 		void RemoveWeakCallback(v8::Persistent<v8::Value>* handle);
 
         inline auto GetBufferPrototype() const -> v8::Local<v8::Object> {
-            return *reinterpret_cast<v8::Local<v8::Object>*>(
-                    const_cast<v8::Global<v8::Object>*>(&buffer_prototype));
+            return buffer_prototype.Get(isolate);
         }
         inline void SetBufferPrototype(v8::Local<v8::Object> value) {
             buffer_prototype.Reset(isolate, value);
