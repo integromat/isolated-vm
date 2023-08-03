@@ -177,9 +177,10 @@ auto ExternalCopy::Copy(Local<Value> value, bool transfer_out, ArrayRange transf
         Local<Context> context = isolate->GetCurrentContext();
 
         std::unique_ptr<ExternalCopy> properties_copy = nullptr;
-        if (view->GetOwnPropertyNames(context).ToLocalChecked()->Length() > 0) {
+        auto property_names = GetObjectOwnProperties(context, view);
+        if (property_names->Length() > 0) {
             Local<Object> properties = Object::New(isolate);
-            CopyObjectOwnProperties(context, properties, view);
+            CopyObjectProperties(context, properties, view, property_names);
             properties_copy = std::make_unique<ExternalCopySerialized>(properties, transfer_list);
         }
 
@@ -538,7 +539,7 @@ auto ExternalCopyArrayBufferView::CopyInto(bool transfer_in) -> Local<Value> {
     if (properties) {
         Local<Context> context = Isolate::GetCurrent()->GetCurrentContext();
         Local<Object> properties_copy = properties->CopyInto(transfer_in).As<Object>();
-        CopyObjectOwnProperties(context, view, properties_copy);
+        CopyObjectProperties(context, view, properties_copy);
     }
 
     return view;
