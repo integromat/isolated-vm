@@ -1,6 +1,18 @@
 name: Build & Test
 
-on: [push, pull_request]
+on:
+  push:
+    paths:
+      - 'src/**'
+      - 'vendor/**'
+      - 'tests/**'
+      - '*.js'
+  pull_request:
+    paths:
+      - 'src/**'
+      - 'vendor/**'
+      - 'tests/**'
+      - '*.js'
 
 jobs:
   build-and-test:
@@ -8,7 +20,7 @@ jobs:
     strategy:
       matrix:
         node-version: [ 16.x, 18.x, 20.x ]
-        os: [ ubuntu-latest, macos-latest, windows-latest ]
+        os: [ ubuntu-latest, macos-latest, windows-latest, macos-m1 ]
       fail-fast: false
     steps:
       - uses: actions/checkout@v4
@@ -27,7 +39,7 @@ jobs:
           npm install --global node-gyp@latest
       - name: Build
         run: |
-          npm install --build-from-source
+          npm install && npm run rebuild
       - name: Test
         uses: nick-fields/retry@v2
         with:
@@ -50,7 +62,7 @@ jobs:
           apk add g++ make python3
       - name: Build
         run: |
-          npm install --build-from-source
+          npm install && npm run rebuild
       - name: Test
         run: |
           npm test

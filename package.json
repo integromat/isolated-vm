@@ -1,14 +1,14 @@
 {
-  "name": "isolated-vm",
+  "name": "@integromat/isolated-vm",
   "version": "4.7.2",
-  "description": "Access to multiple isolates",
+  "description": "Access to multiple isolates - Make Fork",
   "main": "isolated-vm.js",
   "types": "isolated-vm.d.ts",
   "engines": {
     "node": ">=16.0.0"
   },
   "scripts": {
-    "install": "prebuild-install || (node-gyp rebuild --release -j max && node-gyp clean)",
+    "install": "node-gyp-build-optional",
     "rebuild": "node-gyp rebuild --release -j max",
     "prebuild": "prebuild",
     "upload": "prebuild --upload ${GITHUB_TOKEN}",
@@ -16,11 +16,14 @@
     "test": "node test.js"
   },
   "dependencies": {
-    "prebuild-install": "^7.1.1"
+    "node-gyp-build": "^4.6.0"
   },
   "devDependencies": {
     "isolated-vm": ".",
-    "prebuild": "^13.0.0"
+    "prebuildify": "^5.0.1"
+  },
+  "overrides": {
+    "node-gyp": "^9.4.0"
   },
   "binary": {
     "module_path": "out"
