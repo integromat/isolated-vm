@@ -19,9 +19,12 @@ class ExternalMemoryHandle {
 		auto operator=(const ExternalMemoryHandle&) = delete;
 
 		~ExternalMemoryHandle() {
-			auto* allocator = IsolateEnvironment::GetCurrent()->GetLimitedAllocator();
-			if (allocator != nullptr) {
-				allocator->AdjustAllocatedSize(-size);
+			IsolateEnvironment* env = IsolateEnvironment::GetCurrent();
+			if (env != nullptr) {
+				auto* allocator = IsolateEnvironment::GetCurrent()->GetLimitedAllocator();
+				if (allocator!= nullptr) {
+					allocator->AdjustAllocatedSize(-size);
+				}
 			}
 		};
 

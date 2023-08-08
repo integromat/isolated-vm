@@ -57,6 +57,10 @@
 			},
 			'conditions': [
 				[ 'OS == "linux"', { 'defines': [ 'USE_CLOCK_THREAD_CPUTIME_ID' ] } ],
+				[ 'OS != "win"', {
+					'dependencies': [ 'nortti' ],
+					'sources/': [ [ 'exclude', '_nortti\\.cc$' ] ],
+				} ],
 			],
 			'sources': [
 				'src/external_copy/external_copy.cc',
@@ -88,12 +92,6 @@
 				'src/module/script_handle.cc',
 				'src/module/session_handle.cc',
 				'src/module/transferable.cc'
-			],
-			'conditions': [
-				[ 'OS != "win"', {
-					'dependencies': [ 'nortti' ],
-					'sources/': [ [ 'exclude', '_nortti\\.cc$'] ],
-				} ],
 			],
 			'libraries': [
 				'<!@(node -e "process.config.target_defaults.libraries.map(flag=>console.log(flag))")'

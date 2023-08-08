@@ -12,7 +12,7 @@ if (isMainThread) {
 	Promise.all(Array(kWorkerCount).fill().map(async (_, ii) => {
 		const worker = new Worker(__filename);
 		const exit = new Promise((resolve, reject) => {
-			worker.on('exit', code => code ? reject(new Error(`Worker exitted with code: ${code}`)) : resolve());
+			worker.on('exit', code => code ? reject(new Error(`Worker exited with code: ${code}`)) : resolve());
 			worker.on('error', error => reject(error));
 		});
 		const results = [];
