@@ -21,11 +21,6 @@ jobs:
           cache: npm
           cache-dependency-path: 'package-lock.json'
 
-      - name: Get number of cores
-        id: parallelism
-        run: | 
-          echo "cores=$(node -p "os = require('os'); typeof os.availableParallelism === 'function' ? os.availableParallelism() : os.cpus().length")" >> $GITHUB_OUTPUT
-
       - name: Install dependencies
         run: npm ci --ignore-scripts
 
@@ -41,7 +36,7 @@ jobs:
       - name: Build native extension
         run: npx prebuildify -t v16.20.1 -t v18.17.0 -t v20.5.0 --strip
         env:
-          MAKEFLAGS: -j${{ steps.parallelism.outputs.cores }}
+          npm_config_jobs: max # max parallel node-gyp compile jobs
 
       - name: Archive production artifacts
         uses: actions/upload-artifact@v3
@@ -61,6 +56,9 @@ jobs:
           node-version: 20.x
           cache: npm
           cache-dependency-path: 'package-lock.json'
+          registry-url: 'https://registry.npmjs.org'
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Install dependencies
         run: npm ci --ignore-scripts
@@ -75,5 +73,3 @@ jobs:
 
       - name: Publish to NPM
         run: npm publish
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

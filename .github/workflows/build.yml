@@ -26,6 +26,8 @@ jobs:
       - name: Build
         run: |
           npm install --build-from-source
+        env:
+          npm_config_jobs: max # max parallel node-gyp compile jobs
       - name: Test
         uses: nick-fields/retry@v2
         with:
