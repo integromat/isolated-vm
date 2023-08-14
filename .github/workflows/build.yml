@@ -25,9 +25,7 @@ jobs:
           npm install --global node-gyp@latest
       - name: Build
         run: |
-          npm install && npm rebuild
-        env:
-          npm_config_jobs: max # max parallel node-gyp compile jobs
+          npm install && npm run rebuild
       - name: Test
         uses: nick-fields/retry@v2
         with:
@@ -50,7 +48,7 @@ jobs:
           apk add g++ make python3
       - name: Build
         run: |
-          npm install && npm rebuild
+          npm install && npm run rebuild
       - name: Test
         run: |
           npm test
