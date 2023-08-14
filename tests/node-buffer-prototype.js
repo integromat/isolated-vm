@@ -52,4 +52,23 @@ const buffer = Buffer.from(arr)
     assert.deepStrictEqual(bufferCopy, buffer);
 }
 
+{
+    const isolate = new ivm.Isolate();
+    const context = isolate.createContextSync();
+    const jail = context.global;
+
+    context.evalClosureSync(`
+        class Buffer extends Uint8Array {}
+        globalThis.Buffer = Buffer;
+        $0.setBufferPrototype(Buffer.prototype);
+    `, [isolate]);
+
+    jail.setSync('objectWithBuffer', { buffer, array: [buffer] }, { copy: true });
+
+    const objectWithBuffer = jail.getSync('objectWithBuffer', { copy: true });
+
+    assert(Buffer.isBuffer(objectWithBuffer.buffer));
+    assert(Buffer.isBuffer(objectWithBuffer.array[0]));
+}
+
 console.log('pass');
