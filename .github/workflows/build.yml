@@ -1,6 +1,14 @@
 name: Build & Test
 
-on: [push, pull_request]
+on:
+  push:
+    paths: &paths
+      - 'src/**'
+      - 'vendor/**'
+      - 'tests/**'
+      - '*.js'
+  pull_request:
+    paths: *paths
 
 jobs:
   build-and-test:
