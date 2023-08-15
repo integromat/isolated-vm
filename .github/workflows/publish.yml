@@ -9,7 +9,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest, macos-m1]
+        os: [ubuntu-20.04, windows-latest, macos-latest, macos-m1]
 
     steps:
       - uses: actions/checkout@v3
@@ -69,7 +69,7 @@ jobs:
           path: /tmp/artifacts
 
       - name: Move artifacts to prebuilds directory
-        run: mkdir --parents ./prebuilds && mv /tmp/artifacts/binaries-*/* ./prebuilds
+        run: mkdir --parents ./prebuilds && cp --recursive /tmp/artifacts/binaries-*/* ./prebuilds
 
       - name: Publish to NPM
         run: npm publish
