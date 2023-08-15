@@ -70,7 +70,7 @@ jobs:
           path: /tmp/artifacts
 
       - name: Move artifacts to prebuilds directory
-        run: mkdir --parents ./prebuilds && mv /tmp/artifacts/binaries-*/* ./prebuilds
+        run: mkdir --parents ./prebuilds && cp --recursive /tmp/artifacts/binaries-*/* ./prebuilds
 
       - name: Publish to NPM
         run: npm publish --dry-run
