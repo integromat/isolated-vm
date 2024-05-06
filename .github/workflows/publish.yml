@@ -29,7 +29,7 @@ jobs:
         uses: microsoft/setup-msbuild@v1.3
 
       - name: Build native extension
-        run: npx prebuildify -t v16.20.2 -t v18.20.2 -t v20.12.2 --strip
+        run: npx prebuildify --napi=false --name isolated-vm -t v16.20.2 -t v18.20.2 -t v20.12.2 --strip
         env:
           npm_config_jobs: max # max parallel node-gyp compile jobs
 
