@@ -21,7 +21,7 @@
   "devDependencies": {
     "isolated-vm": ".",
     "node-gyp": "^10.1.0",
-    "prebuildify": "^5.0.1"
+    "prebuildify": "^6.0.1"
   },
   "binary": {
     "module_path": "out"
