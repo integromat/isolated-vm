@@ -3,12 +3,14 @@ name: Build & Test
 on:
   push:
     paths:
+      - '.github/workflows/build.yml'
       - 'src/**'
       - 'vendor/**'
       - 'tests/**'
       - '*.js'
   pull_request:
     paths:
+      - '.github/workflows/build.yml'
       - 'src/**'
       - 'vendor/**'
       - 'tests/**'
@@ -24,8 +26,6 @@ jobs:
       fail-fast: false
     steps:
       - uses: actions/checkout@v4
-      # https://github.com/nodejs/node-gyp/issues/2869
-      - run: python3 -m pip install setuptools
       - name: Use Node.js ${{ matrix.node-version }}
         uses: actions/setup-node@v4
         with:
