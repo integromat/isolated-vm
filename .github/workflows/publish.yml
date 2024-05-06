@@ -9,7 +9,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-20.04, windows-latest, macos-latest, macos-m1]
+        os: [ubuntu-20.04, windows-latest, macos-latest]
 
     steps:
       - uses: actions/checkout@v3
@@ -27,11 +27,6 @@ jobs:
       - name: Add msbuild to PATH
         if: matrix.os == 'windows-latest'
         uses: microsoft/setup-msbuild@v1.3
-
-      - name: Install node-gyp
-        if: matrix.os == 'windows-latest'
-        run: |
-          npm install --global node-gyp@latest
 
       - name: Build native extension
         run: npx prebuildify -t v16.20.2 -t v18.20.2 -t v20.12.2 --strip
