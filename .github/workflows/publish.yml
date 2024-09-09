@@ -9,12 +9,11 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-20.04, windows-latest, macos-latest]
-
+        os: [ubuntu-20.04, windows-latest, macos-latest, linux-arm]
     steps:
       - uses: actions/checkout@v3
 
-      - name: Use Node.js ${{ matrix.node-version }}
+      - name: Use Node.js
         uses: actions/setup-node@v3
         with:
           node-version: 20.x
@@ -29,7 +28,7 @@ jobs:
         uses: microsoft/setup-msbuild@v1.3
 
       - name: Build native extension
-        run: npx prebuildify --napi=false --name isolated-vm -t v16.20.2 -t v18.20.2 -t v20.12.2 --strip
+        run: npx prebuildify --napi=false --name isolated-vm -t v16.20.2 -t v18.20.4 -t v20.16.0 --strip
         env:
           npm_config_jobs: max # max parallel node-gyp compile jobs
 
