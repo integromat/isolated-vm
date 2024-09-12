@@ -18,7 +18,7 @@ jobs:
     strategy:
       matrix:
         os: [ ubuntu-latest, linux-arm ]
-        container: [ debian:bullseye-slim, debian:bookworm-slim ]
+        container: [ 'debian:bullseye-slim', 'debian:bookworm-slim' ]
     steps:
       - uses: actions/checkout@v3
 
@@ -37,10 +37,16 @@ jobs:
         env:
           npm_config_jobs: max # max parallel node-gyp compile jobs
 
+      - name: Describe build environment
+        id: env
+        run: |
+          export LIBC_VERSION=$(ldd --version | head -n 1 | awk '{print $NF}')
+          echo "env=${{ matrix.os }}-libc-$LIBC_VERSION" >> $GITHUB_ENV
+
       - name: Archive production artifacts
         uses: actions/upload-artifact@v3
         with:
-          name: binaries-${{ matrix.os }}
+          name: binaries-${{ steps.env.outputs.env }}
           path: ./prebuilds
 
 #  build-others:
