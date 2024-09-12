@@ -1,15 +1,8 @@
 name: Publish to NPM with pre-built binaries
 
 on:
-#  release:
-#    types: [created]
-  pull_request:
-    paths:
-      - '.github/workflows/ci.yml'
-      - 'src/**'
-      - 'vendor/**'
-      - 'tests/**'
-      - '*.js'
+  release:
+    types: [created]
 
 jobs:
   build-linux:
@@ -43,67 +36,67 @@ jobs:
           name: binaries-${{ matrix.os }}
           path: ./prebuilds
 
-#  build-others:
-#    runs-on: ${{ matrix.os }}
-#    strategy:
-#      matrix:
-#        os: [windows-latest, macos-latest]
-#    steps:
-#      - uses: actions/checkout@v3
-#
-#      - name: Use Node.js
-#        uses: actions/setup-node@v3
-#        with:
-#          node-version: 20.x
-#          cache: npm
-#          cache-dependency-path: 'package-lock.json'
-#
-#      - name: Install dependencies
-#        run: npm ci --ignore-scripts
-#
-#      - name: Add msbuild to PATH
-#        if: matrix.os == 'windows-latest'
-#        uses: microsoft/setup-msbuild@v1.3
-#
-#      - name: Build native extension
-#        run: npx prebuildify --napi=false --name isolated-vm -t v16.20.2 -t v18.20.4 -t v20.16.0 --strip
-#        env:
-#          npm_config_jobs: max # max parallel node-gyp compile jobs
-#
-#      - name: Archive production artifacts
-#        uses: actions/upload-artifact@v3
-#        with:
-#          name: binaries-${{ matrix.os }}
-#          path: ./prebuilds
+  build-others:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [windows-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
 
-#  publish:
-#    needs:
-#      - build
-#      - build-linux
-#    runs-on: ubuntu-latest
-#    steps:
-#      - uses: actions/checkout@v3
-#
-#      - name: Use Node.js
-#        uses: actions/setup-node@v3
-#        with:
-#          node-version: 20.x
-#          cache: npm
-#          cache-dependency-path: 'package-lock.json'
-#          registry-url: 'https://registry.npmjs.org'
-#        env:
-#          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-#
-#      - name: Install dependencies
-#        run: npm ci --ignore-scripts
-#
-#      - name: Download all artifacts
-#        uses: actions/download-artifact@v3
-#        with:
-#          path: /tmp/artifacts
-#
-#      - name: Move artifacts to prebuilds directory
-#        run: mkdir --parents ./prebuilds && cp --recursive /tmp/artifacts/binaries-*/* ./prebuilds
-#
-#      - name: Publish to NPM
-#        run: npm publish
+      - name: Use Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20.x
+          cache: npm
+          cache-dependency-path: 'package-lock.json'
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Add msbuild to PATH
+        if: matrix.os == 'windows-latest'
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Build native extension
+        run: npx prebuildify --napi=false --name isolated-vm -t v16.20.2 -t v18.20.4 -t v20.16.0 --strip
+        env:
+          npm_config_jobs: max # max parallel node-gyp compile jobs
+
+      - name: Archive production artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: binaries-${{ matrix.os }}
+          path: ./prebuilds
+
+  publish:
+    needs:
+      - build-others
+      - build-linux
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Use Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20.x
+          cache: npm
+          cache-dependency-path: 'package-lock.json'
+          registry-url: 'https://registry.npmjs.org'
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v3
+        with:
+          path: /tmp/artifacts
+
+      - name: Move artifacts to prebuilds directory
+        run: mkdir --parents ./prebuilds && cp --recursive /tmp/artifacts/binaries-*/* ./prebuilds
+
+      - name: Publish to NPM
+        run: npm publish

@@ -2,8 +2,6 @@ name: Build & Test
 
 on:
   pull_request:
-    branches-ignore:
-      - '*'
     paths:
       - '.github/workflows/ci.yml'
       - 'src/**'
@@ -27,12 +25,12 @@ jobs:
           node-version: ${{ matrix.node-version }}
       - name: Add msbuild to PATH
         if: matrix.os == 'windows-latest'
-        uses: microsoft/setup-msbuild@v1.3
+        uses: microsoft/setup-msbuild@v2
       - name: Build
         run: |
           npm install && npm run rebuild
       - name: Test
-        uses: nick-fields/retry@v2
+        uses: nick-fields/retry@v3
         with:
           max_attempts: 3
           retry_on: error
