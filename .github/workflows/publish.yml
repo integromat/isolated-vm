@@ -5,16 +5,47 @@ on:
     types: [created]
 
 jobs:
-  build:
+  build-linux:
+    runs-on: ${{ matrix.os }}
+    # This will force build on an older libc version
+    container: node:20-bullseye
+    strategy:
+      matrix:
+        os: [ ubuntu-latest, linux-arm ]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Use Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20.x
+          cache: npm
+          cache-dependency-path: 'package-lock.json'
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Build native extension
+        run: npx prebuildify --napi=false --name isolated-vm --tag-libc -t v16.20.2 -t v18.20.4 -t v20.16.0 --strip
+        env:
+          npm_config_jobs: max # max parallel node-gyp compile jobs
+
+      - name: Archive production artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: binaries-${{ matrix.os }}
+          path: ./prebuilds
+
+  build-others:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-20.04, windows-latest, macos-latest, linux-arm]
+        os: [windows-latest, macos-latest]
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Use Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
           node-version: 20.x
           cache: npm
@@ -25,7 +56,7 @@ jobs:
 
       - name: Add msbuild to PATH
         if: matrix.os == 'windows-latest'
-        uses: microsoft/setup-msbuild@v1.3
+        uses: microsoft/setup-msbuild@v2
 
       - name: Build native extension
         run: npx prebuildify --napi=false --name isolated-vm -t v16.20.2 -t v18.20.4 -t v20.16.0 --strip
@@ -39,13 +70,15 @@ jobs:
           path: ./prebuilds
 
   publish:
-    needs: build
+    needs:
+      - build-others
+      - build-linux
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Use Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
           node-version: 20.x
           cache: npm
