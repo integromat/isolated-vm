@@ -36,23 +36,27 @@ let cachedData;
 
 {
 	// Time compilation with no cached data
-	let d = Date.now();
-	const timeout = 200;
-	let count = 0;
-	do {
+	const count = 10;
+
+	const uncachedCompileStart = Date.now();
+	for (let i = 0; i < count; i++) {
 		const isolate = new ivm.Isolate;
 		const script = isolate.compileScriptSync(src);
-		++count;
-	} while (Date.now() < d + timeout);
+	}
+	const uncachedCompileEnd = Date.now();
+	const uncachedCompileDuration = uncachedCompileEnd - uncachedCompileStart;
 
-	// Compare to compilation with cached data
-	d = Date.now();
-	for (let ii = 0; ii < count; ++ii) {
+	// Time compilation with cached data
+	const cachedCompileStart = Date.now();
+	for (let i = 0; i < count; i++) {
 		const isolate = new ivm.Isolate;
 		const script = isolate.compileScriptSync(src, { cachedData });
 		assert.ok(!script.cachedDataRejected);
 	}
-	if (Date.now() - d > timeout / 2) {
+	const cachedCompileEnd = Date.now();
+	const cachedCompileDuration = cachedCompileEnd - cachedCompileStart;
+
+	if (cachedCompileDuration > uncachedCompileDuration * 0.7) {
 		console.log('cached data is suspiciously slow');
 	}
 }

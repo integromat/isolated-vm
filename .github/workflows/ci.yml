@@ -1,16 +1,9 @@
 name: Build & Test
 
 on:
-  push:
-    paths:
-      - '.github/workflows/build.yml'
-      - 'src/**'
-      - 'vendor/**'
-      - 'tests/**'
-      - '*.js'
   pull_request:
     paths:
-      - '.github/workflows/build.yml'
+      - '.github/workflows/ci.yml'
       - 'src/**'
       - 'vendor/**'
       - 'tests/**'
@@ -22,7 +15,7 @@ jobs:
     strategy:
       matrix:
         node-version: [ 16.x, 18.x, 20.x ]
-        os: [ ubuntu-latest, macos-latest, windows-latest ]
+        os: [ ubuntu-latest, macos-latest, windows-latest, linux-arm ]
       fail-fast: false
     steps:
       - uses: actions/checkout@v4
