@@ -18,7 +18,7 @@ jobs:
     strategy:
       matrix:
         os: [ ubuntu-latest, linux-arm ]
-        container: [ 'debian:bullseye-slim', 'debian:bookworm-slim' ]
+        container: [ 'node:20-bullseye', 'node:20-bookworm' ]
     steps:
       - uses: actions/checkout@v3
 
