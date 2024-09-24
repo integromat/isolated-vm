@@ -279,7 +279,7 @@ Start a CPU profiler in the isolate, for performance profiling. It only collects
 the isolate is active in a thread.
 
 ##### `isolate.stopCpuProfiler(title)` *[Promise<Array<ThreadCpuProfile>>]*
-Stop a CPU profiler previously started using the same title. It returns an array of profiles dependening
+Stop a CPU profiler previously started using the same title. It returns an array of profiles depending
 on how many times the isolate get activated in a thread.
 
 
@@ -548,7 +548,7 @@ SharedArrayBuffer will point to the same underlying data. After passing a Shared
 ExternalCopy for the first time isolated-vm will take over management of the underlying memory
 block, so a "copied" SharedArrayBuffer can outlive the isolate that created the memory originally.
 
-All other objects will be copied in seralized form using the [structured clone algorithm](https://developer.mozilla.org/en-US/docs/Web/API/Web_Workers_API/Structured_clone_algorithm).
+All other objects will be copied in serialized form using the [structured clone algorithm](https://developer.mozilla.org/en-US/docs/Web/API/Web_Workers_API/Structured_clone_algorithm).
 `ExternalCopy` can copy objects with deeply nested *transferable* objects. For example:
 
 ```js
