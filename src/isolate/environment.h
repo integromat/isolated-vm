@@ -334,10 +334,14 @@ class IsolateEnvironment {
 			auto delta = static_cast<ssize_t>(new_external_memory_size - last_reported_external_memory_size);
 			last_reported_external_memory_size = new_external_memory_size;
 
+			static_assert(sizeof(ssize_t) <= sizeof(void*), "ssize_t does not fit into a void*");
+
 			if (delta != 0) {
 				auto parent_env = parent_isolate_holder->GetIsolate();
 				if (parent_env) {
-					parent_env->isolate->AdjustAmountOfExternalAllocatedMemory(delta);
+					parent_env->isolate->RequestInterrupt([](v8::Isolate* isolate, void* delta) {
+						isolate->AdjustAmountOfExternalAllocatedMemory(reinterpret_cast<ssize_t>(delta));
+					}, reinterpret_cast<void *>(delta)); // NOLINT(*-no-int-to-ptr)
 				}
 			}
 		}
