@@ -192,13 +192,18 @@ void IsolateEnvironment::MarkSweepCompactPrologue(Isolate* /*isolate*/, GCType /
 		return;
 	}
 
+#if V8_AT_LEAST(11, 3, 244) // V8 version in Node 20+
 	constexpr auto kGCFlagsToPropagate =
 			GCCallbackFlags::kGCCallbackFlagCollectAllAvailableGarbage |
 			GCCallbackFlags::kGCCallbackFlagForced |
 			GCCallbackFlags::kGCCallbackFlagCollectAllExternalMemory;
+	auto condition = (gc_flags & kGCFlagsToPropagate) != 0;
+#else
+	auto condition = gc_flags == GCCallbackFlags::kNoGCCallbackFlags;
+#endif
 
 	// Propagate memory pressure to all owned isolates
-	if ((gc_flags & kGCFlagsToPropagate) != 0) {
+	if (condition) {
 		auto isolates = *that->owned_isolates->read(); // copy
 		for (const auto &handle: isolates) {
 			auto ref = handle.holder.lock();
