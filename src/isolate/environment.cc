@@ -185,6 +185,37 @@ auto IsolateEnvironment::CodeGenCallback2(Local<Context> context, Local<Value> s
 	return CodeGenCallback(context, source);
 }
 
+void IsolateEnvironment::MarkSweepCompactPrologue(Isolate* /*isolate*/, GCType /*gc_type*/, GCCallbackFlags gc_flags, void* data) {
+	auto *that = static_cast<IsolateEnvironment *>(data);
+
+	if (!that->owned_isolates) {
+		return;
+	}
+
+	constexpr auto kGCFlagsToPropagate =
+			GCCallbackFlags::kGCCallbackFlagCollectAllAvailableGarbage |
+			GCCallbackFlags::kGCCallbackFlagForced |
+			GCCallbackFlags::kGCCallbackFlagCollectAllExternalMemory;
+
+	// Propagate memory pressure to all owned isolates
+	if ((gc_flags & kGCFlagsToPropagate) != 0) {
+		auto isolates = *that->owned_isolates->read(); // copy
+		for (const auto &handle: isolates) {
+			auto ref = handle.holder.lock();
+			if (!ref) {
+				continue;
+			}
+
+			auto owned_isolate = ref->GetIsolate();
+			if (owned_isolate) {
+				Executor::Lock lock(*owned_isolate);
+				owned_isolate->memory_pressure = MemoryPressureLevel::kCritical;
+				owned_isolate->CheckMemoryPressure();
+			}
+		}
+	}
+}
+
 void IsolateEnvironment::MarkSweepCompactEpilogue(Isolate* isolate, GCType /*gc_type*/, GCCallbackFlags gc_flags, void* data) {
 	auto* that = static_cast<IsolateEnvironment*>(data);
 	HeapStatistics heap;
@@ -356,6 +387,7 @@ IsolateEnvironment::IsolateEnvironment(UvScheduler& default_scheduler) :
 
 void IsolateEnvironment::IsolateCtor(Isolate* isolate, Local<Context> context) {
 	this->isolate = isolate;
+	isolate->AddGCPrologueCallback(MarkSweepCompactPrologue, static_cast<void*>(this), GCType::kGCTypeMarkSweepCompact);
 	default_context.Reset(isolate, context);
 }
 
@@ -395,6 +427,7 @@ void IsolateEnvironment::IsolateCtor(size_t memory_limit_in_mb, shared_ptr<v8::B
 	isolate->SetModifyCodeGenerationFromStringsCallback(CodeGenCallback2);
 
 	// Add GC callbacks
+	isolate->AddGCPrologueCallback(MarkSweepCompactPrologue, static_cast<void*>(this), GCType::kGCTypeMarkSweepCompact);
 	isolate->AddGCEpilogueCallback(MarkSweepCompactEpilogue, static_cast<void*>(this), GCType::kGCTypeMarkSweepCompact);
 	isolate->AddNearHeapLimitCallback(NearHeapLimitCallback, static_cast<void*>(this));
 
