@@ -185,38 +185,35 @@ auto IsolateEnvironment::CodeGenCallback2(Local<Context> context, Local<Value> s
 	return CodeGenCallback(context, source);
 }
 
-void IsolateEnvironment::MarkSweepCompactPrologue(Isolate* /*isolate*/, GCType /*gc_type*/, GCCallbackFlags gc_flags, void* data) {
+void IsolateEnvironment::MarkSweepCompactPrologue(Isolate* /*isolate*/, GCType gc_type, GCCallbackFlags /*gc_flags*/, void* data) {
+#if V8_AT_LEAST(10, 0, 0) // Node.js 18+
+	if ((gc_type & (GCType::kGCTypeMarkSweepCompact | GCType::kGCTypeMinorMarkCompact)) == 0) {
+		return;
+	}
+#else
+	if (gc_type != GCType::kGCTypeMarkSweepCompact) {
+		return;
+	}
+#endif
+
 	auto *that = static_cast<IsolateEnvironment *>(data);
 
 	if (!that->owned_isolates) {
 		return;
 	}
 
-#if V8_AT_LEAST(11, 3, 244) // V8 version in Node 20+
-	constexpr auto kGCFlagsToPropagate =
-			GCCallbackFlags::kGCCallbackFlagCollectAllAvailableGarbage |
-			GCCallbackFlags::kGCCallbackFlagForced |
-			GCCallbackFlags::kGCCallbackFlagCollectAllExternalMemory;
-	auto condition = (gc_flags & kGCFlagsToPropagate) != 0;
-#else
-	auto condition = gc_flags == GCCallbackFlags::kNoGCCallbackFlags;
-#endif
+	auto isolates = *that->owned_isolates->read(); // copy
+	for (const auto &handle: isolates) {
+		auto ref = handle.holder.lock();
+		if (!ref) {
+			continue;
+		}
 
-	// Propagate memory pressure to all owned isolates
-	if (condition) {
-		auto isolates = *that->owned_isolates->read(); // copy
-		for (const auto &handle: isolates) {
-			auto ref = handle.holder.lock();
-			if (!ref) {
-				continue;
-			}
-
-			auto owned_isolate = ref->GetIsolate();
-			if (owned_isolate) {
-				Executor::Lock lock(*owned_isolate);
-				owned_isolate->memory_pressure = MemoryPressureLevel::kCritical;
-				owned_isolate->CheckMemoryPressure();
-			}
+		auto owned_isolate = ref->GetIsolate();
+		if (owned_isolate && owned_isolate->last_memory_pressure != MemoryPressureLevel::kCritical) {
+			Executor::Lock lock(*owned_isolate);
+			owned_isolate->memory_pressure = MemoryPressureLevel::kCritical;
+			owned_isolate->CheckMemoryPressure();
 		}
 	}
 }
@@ -392,7 +389,7 @@ IsolateEnvironment::IsolateEnvironment(UvScheduler& default_scheduler) :
 
 void IsolateEnvironment::IsolateCtor(Isolate* isolate, Local<Context> context) {
 	this->isolate = isolate;
-	isolate->AddGCPrologueCallback(MarkSweepCompactPrologue, static_cast<void*>(this), GCType::kGCTypeMarkSweepCompact);
+	isolate->AddGCPrologueCallback(MarkSweepCompactPrologue, static_cast<void*>(this), GCType::kGCTypeAll);
 	default_context.Reset(isolate, context);
 }
 
