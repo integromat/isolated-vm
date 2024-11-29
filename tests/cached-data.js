@@ -35,9 +35,9 @@ let cachedData;
 }
 
 {
-	// Time compilation with no cached data
-	const count = 10;
+	const count = 3; // larger number causes GC to run and mess up the results
 
+	// Time compilation with no cached data
 	const uncachedCompileStart = Date.now();
 	for (let i = 0; i < count; i++) {
 		const isolate = new ivm.Isolate;
