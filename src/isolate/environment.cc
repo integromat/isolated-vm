@@ -196,14 +196,14 @@ void IsolateEnvironment::MarkSweepCompactPrologue(Isolate* /*isolate*/, GCType g
 	}
 #endif
 
-	auto *that = static_cast<IsolateEnvironment *>(data);
+	auto* that = static_cast<IsolateEnvironment*>(data);
 
 	if (!that->owned_isolates) {
 		return;
 	}
 
 	auto isolates = *that->owned_isolates->read(); // copy
-	for (const auto &handle: isolates) {
+	for (const auto& handle: isolates) {
 		auto ref = handle.holder.lock();
 		if (!ref) {
 			continue;
@@ -429,7 +429,7 @@ void IsolateEnvironment::IsolateCtor(size_t memory_limit_in_mb, shared_ptr<v8::B
 	isolate->SetModifyCodeGenerationFromStringsCallback(CodeGenCallback2);
 
 	// Add GC callbacks
-	isolate->AddGCPrologueCallback(MarkSweepCompactPrologue, static_cast<void*>(this), GCType::kGCTypeMarkSweepCompact);
+	isolate->AddGCPrologueCallback(MarkSweepCompactPrologue, static_cast<void*>(this), GCType::kGCTypeAll);
 	isolate->AddGCEpilogueCallback(MarkSweepCompactEpilogue, static_cast<void*>(this), GCType::kGCTypeMarkSweepCompact);
 	isolate->AddNearHeapLimitCallback(NearHeapLimitCallback, static_cast<void*>(this));
 
