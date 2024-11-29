@@ -15,7 +15,7 @@ jobs:
     strategy:
       matrix:
         node-version: [ 16.x, 18.x, 20.x ]
-        os: [ ubuntu-latest, macos-latest, windows-latest, linux-arm ]
+        os: [ ubuntu-latest, macos-latest, windows-latest, make-ubuntu24-arm64-2c ]
       fail-fast: false
     steps:
       - uses: actions/checkout@v4
