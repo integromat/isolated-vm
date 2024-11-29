@@ -11,7 +11,7 @@ jobs:
     container: node:20-bullseye
     strategy:
       matrix:
-        os: [ ubuntu-latest, linux-arm ]
+        os: [ ubuntu-latest, make-ubuntu24-arm64-2c ]
     steps:
       - uses: actions/checkout@v4
 
