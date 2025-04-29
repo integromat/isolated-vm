@@ -19,11 +19,11 @@ jobs:
           command: |
               git config --global user.email "d.idehen@make.com"
               git config --global user.name "dennyidehen"
-              git checkout -b vrcscan1 origin/master
+              git checkout -b vrcscan1 origin/main
               
       - run: 
             name: "Bundle artifact for upload to Veracode"
-            command: zip -r upload.zip lib package-lock.json package.json
+            command: zip -r upload.zip src package-lock.json package.json
 
       - run:
           name: "Get the Veracode agent"
@@ -55,7 +55,7 @@ jobs:
           command: |
               git config --global user.email "d.idehen@make.com"
               git config --global user.name "dennyidehen"
-              git checkout -b vrcscan1 origin/master
+              git checkout -b vrcscan1 origin/main
 
       - run: 
             name: "Veracode SCA agent based"
