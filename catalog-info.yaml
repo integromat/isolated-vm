@@ -1,0 +1,11 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: isolated-vm
+  annotations:
+    github.com/project-slug: integromat/isolated-vm
+spec:
+  type: library
+  lifecycle: production
+  owner: group:default/build-and-run-backend
+  partOfCoreProduct: true
