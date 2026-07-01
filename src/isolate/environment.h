@@ -102,8 +102,11 @@ class IsolateEnvironment : public std::enable_shared_from_this<IsolateEnvironmen
 		size_t misc_memory_size = 0;
 		size_t last_reported_external_memory_size = 0;
 		std::atomic<size_t> extra_allocated_memory = 0;
-		v8::MemoryPressureLevel memory_pressure = v8::MemoryPressureLevel::kNone;
-		v8::MemoryPressureLevel last_memory_pressure = v8::MemoryPressureLevel::kNone;
+		// Accessed from both the owning (child) thread and the parent isolate's GC prologue thread
+		// (see MemoryPressurePrologue), so these must be atomic to avoid a data race. All accesses are
+		// best-effort dedup decisions, so relaxed ordering suffices.
+		std::atomic<v8::MemoryPressureLevel> memory_pressure{v8::MemoryPressureLevel::kNone};
+		std::atomic<v8::MemoryPressureLevel> last_memory_pressure{v8::MemoryPressureLevel::kNone};
 		// Count of major (mark-sweep-compact) GCs this isolate has run. Maintained on the isolate's own
 		// thread in MarkSweepCompactEpilogue and surfaced via getHeapStatistics(). Useful for spotting
 		// pathological GC pressure (e.g. the parent force-collecting a child on every parent GC).

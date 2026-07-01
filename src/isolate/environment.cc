@@ -242,13 +242,13 @@ void IsolateEnvironment::MarkSweepCompactPrologue(Isolate* /*isolate*/, GCType g
 		// it. It only re-arms once it runs real work and a routine collection drops it below threshold — by
 		// which point it's `Running` and skipped above. The net effect: an idle child is reclaimed once per
 		// genuine work cycle under sustained parent pressure, never in a tight storm.
-		if (owned_isolate->last_memory_pressure != MemoryPressureLevel::kCritical) {
+		if (owned_isolate->last_memory_pressure.load(std::memory_order_relaxed) != MemoryPressureLevel::kCritical) {
 			// NB: `MemoryPressureNotification` is safe to call from this non-owning (parent) thread: it
 			// detects we don't hold the child's lock and, rather than collecting inline, posts a
 			// memory-pressure GC task to the child's foreground task runner (and never blocks). Our task
 			// runner only enqueues, so an idle child would never run that task — wake it explicitly so the
 			// GC actually happens on the child's own thread.
-			owned_isolate->memory_pressure = MemoryPressureLevel::kCritical;
+			owned_isolate->memory_pressure.store(MemoryPressureLevel::kCritical, std::memory_order_relaxed);
 			owned_isolate->isolate->MemoryPressureNotification(MemoryPressureLevel::kCritical);
 			owned_isolate->scheduler->Lock()->WakeIsolate(owned_isolate);
 		}
@@ -308,9 +308,9 @@ auto IsolateEnvironment::NearHeapLimitCallback(void* data, size_t current_heap_l
 }
 
 void IsolateEnvironment::RequestMemoryPressureNotification(MemoryPressureLevel memory_pressure, bool as_interrupt) {
-	this->memory_pressure = memory_pressure;
+	this->memory_pressure.store(memory_pressure, std::memory_order_relaxed);
 	if (as_interrupt) {
-		if (memory_pressure > last_memory_pressure) {
+		if (memory_pressure > last_memory_pressure.load(std::memory_order_relaxed)) {
 			isolate->RequestInterrupt(MemoryPressureInterrupt, static_cast<void*>(this));
 		}
 	} else {
@@ -327,11 +327,13 @@ void IsolateEnvironment::MemoryPressureInterrupt(Isolate* /*isolate*/, void* dat
 }
 
 void IsolateEnvironment::CheckMemoryPressure() {
-	if (memory_pressure != last_memory_pressure) {
-		if (memory_pressure > last_memory_pressure) {
-			isolate->MemoryPressureNotification(memory_pressure);
+	auto pressure = memory_pressure.load(std::memory_order_relaxed);
+	auto last = last_memory_pressure.load(std::memory_order_relaxed);
+	if (pressure != last) {
+		if (pressure > last) {
+			isolate->MemoryPressureNotification(pressure);
 		}
-		last_memory_pressure = memory_pressure;
+		last_memory_pressure.store(pressure, std::memory_order_relaxed);
 	}
 }
 

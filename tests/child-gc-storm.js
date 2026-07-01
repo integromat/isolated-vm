@@ -60,21 +60,26 @@ async function countChildMajorGcs(parentGcPressure) {
 	const before = children.map(({ isolate }) => isolate.getHeapStatisticsSync().major_gc_count);
 
 	let timer = null;
-	if (parentGcPressure) {
-		timer = setInterval(() => global.gc(), 5);
+	try {
+		if (parentGcPressure) {
+			timer = setInterval(() => global.gc(), 5);
+		}
+
+		await Promise.all(children.map(({ context }) =>
+			context.eval(`for (let n = 0; n < ${OUTER}; n++) work(); "ok"`)));
+
+		// Read heap stats before disposal (disposal happens in `finally`).
+		let total = 0;
+		children.forEach(({ isolate }, i) => {
+			total += isolate.getHeapStatisticsSync().major_gc_count - before[i];
+		});
+		return total;
+	} finally {
+		// Always clear the timer and dispose isolates, even if the workload rejects (e.g. isolate
+		// termination) — otherwise the interval keeps the process alive and the isolates leak.
+		if (timer) clearInterval(timer);
+		for (const { isolate } of children) isolate.dispose();
 	}
-
-	await Promise.all(children.map(({ context }) =>
-		context.eval(`for (let n = 0; n < ${OUTER}; n++) work(); "ok"`)));
-
-	if (timer) clearInterval(timer);
-
-	let total = 0;
-	children.forEach(({ isolate }, i) => {
-		total += isolate.getHeapStatisticsSync().major_gc_count - before[i];
-	});
-	for (const { isolate } of children) isolate.dispose();
-	return total;
 }
 
 async function run() {
