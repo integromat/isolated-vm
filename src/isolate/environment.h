@@ -124,8 +124,6 @@ class IsolateEnvironment : public std::enable_shared_from_this<IsolateEnvironmen
 		std::unordered_map<v8::Persistent<v8::Value>*, std::pair<void(*)(void*), void*>> weak_persistents;
 		std::shared_ptr<CpuProfileManager> cpu_profile_manager;
 
-        v8::Global<v8::Object> buffer_prototype;
-
 	public:
 		RemoteHandle<v8::Function> error_handler;
 		std::unordered_multimap<int, struct ModuleInfo*> module_handles;
@@ -397,12 +395,22 @@ class IsolateEnvironment : public std::enable_shared_from_this<IsolateEnvironmen
 		void AddWeakCallback(v8::Persistent<v8::Value>* handle, void(*fn)(void*), void* param);
 		void RemoveWeakCallback(v8::Persistent<v8::Value>* handle);
 
-        inline auto GetBufferPrototype() const -> v8::Local<v8::Object> {
-            return buffer_prototype.Get(isolate);
-        }
-        inline void SetBufferPrototype(v8::Local<v8::Object> value) {
-            buffer_prototype.Reset(isolate, value);
-        }
+		/**
+		 * Node `Buffer.prototype` used to recognize (sandbox->host) and stamp (host->sandbox)
+		 * `Buffer` instances crossing the isolate boundary.
+		 *
+		 * Registration is *per context*, not per isolate: the value is stored as a private
+		 * property on the current context's global proxy, so every context in an isolate can
+		 * register its own `Buffer` and round-trip independently. Both accessors operate on
+		 * `isolate->GetCurrentContext()` and must therefore be called with this environment's
+		 * isolate entered and the intended context current — which is the case at every call
+		 * site (external copy runs inside the crossing context; `setBufferPrototype` is invoked
+		 * from inside the context registering itself).
+		 *
+		 * @returns The registered prototype, or an empty handle if this context never registered.
+		 */
+		auto GetBufferPrototype() const -> v8::Local<v8::Object>;
+		void SetBufferPrototype(v8::Local<v8::Object> value);
 };
 
 
