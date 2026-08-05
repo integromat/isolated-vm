@@ -6,6 +6,27 @@
 namespace ivm {
 
     /**
+     * Renders a property key for use in an error message.
+     *
+     * Symbols are described rather than stringified. `String::Utf8Value` invokes `ToString`, which
+     * throws for a symbol and leaves the wrapper holding a null pointer -- concatenating that into a
+     * `std::string` reads through it and crashes.
+     */
+    inline auto DescribePropertyKey(v8::Isolate* isolate, v8::Local<v8::Name> key) -> std::string {
+        v8::Local<v8::Value> label = key;
+        if (key->IsSymbol()) {
+            label = key.As<v8::Symbol>()->Description(isolate);
+        }
+
+        v8::String::Utf8Value utf8{isolate, label};
+        if (*utf8 == nullptr) {
+            return "<unknown>";
+        }
+
+        return {*utf8, static_cast<std::size_t>(utf8.length())};
+    }
+
+    /**
      * Collects the own, non-index property names of `object`.
      *
      * Raises rather than aborting if the lookup fails. `GetPropertyNames` does not invoke user code
@@ -28,6 +49,10 @@ namespace ivm {
      * returns an empty `MaybeLocal` with an opaque pending exception; skipping it would drop the
      * property from the copy with no diagnostic at all, which reads to the caller as a successful
      * transfer.
+     *
+     * Only own properties are ever considered, so an *inherited* accessor is never read and needs no
+     * rejection. Rejecting them would reject every typed array: `parent`, `offset`, `buffer`,
+     * `byteLength`, `byteOffset` and `length` all live on the prototype as accessors.
      */
     inline void CopyObjectProperties(v8::Local<v8::Context> context, v8::Local<v8::Object> target, v8::Local<v8::Object> source, v8::Local<v8::Array> property_names) {
         v8::Isolate* isolate = v8::Isolate::GetCurrent();
@@ -42,13 +67,15 @@ namespace ivm {
             // active. `GetOwnPropertyDescriptor` does not invoke user code on a non-proxy object.
             v8::Local<v8::Value> descriptor = Unmaybe(source->GetOwnPropertyDescriptor(context, name));
             if (descriptor->IsObject()) {
+                // The descriptor's *own* `get`/`set`, not an inherited one. `Has` walks the prototype
+                // chain, so a polluted `Object.prototype.get` would otherwise make every plain data
+                // property look like an accessor.
                 v8::Local<v8::Object> descriptor_object = descriptor.As<v8::Object>();
-                bool has_getter = Unmaybe(descriptor_object->Has(context, v8::String::NewFromUtf8Literal(isolate, "get")));
-                bool has_setter = Unmaybe(descriptor_object->Has(context, v8::String::NewFromUtf8Literal(isolate, "set")));
+                bool has_getter = Unmaybe(descriptor_object->HasOwnProperty(context, v8::String::NewFromUtf8Literal(isolate, "get")));
+                bool has_setter = Unmaybe(descriptor_object->HasOwnProperty(context, v8::String::NewFromUtf8Literal(isolate, "set")));
                 if (has_getter || has_setter) {
-                    v8::String::Utf8Value key_name{isolate, key};
                     throw RuntimeTypeError(
-                        std::string{"Property '"} + *key_name +
+                        "Property '" + DescribePropertyKey(isolate, name) +
                         "' could not be copied because it is an accessor. Reading it would run user "
                         "code during transfer, which is not allowed. Assign a plain value instead.");
                 }
@@ -61,13 +88,18 @@ namespace ivm {
                 v8::TryCatch try_catch{isolate};
                 if (!source->Get(context, name).ToLocal(&value)) {
                     try_catch.Reset();
-                    v8::String::Utf8Value key_name{isolate, key};
                     throw RuntimeTypeError(
-                        std::string{"Property '"} + *key_name + "' could not be read during transfer");
+                        "Property '" + DescribePropertyKey(isolate, name) + "' could not be read during transfer");
                 }
             }
 
-            Unmaybe(target->Set(context, name, value));
+            // Define, don't assign. `Set` runs a setter inherited by the target, which is user code
+            // executing mid-copy -- an abort under the transfer's `DisallowJavascriptExecutionScope`,
+            // and a silently swallowed property otherwise.
+            if (!Unmaybe(target->CreateDataProperty(context, name, value))) {
+                throw RuntimeTypeError(
+                    "Property '" + DescribePropertyKey(isolate, name) + "' could not be defined on the copy");
+            }
         }
     }
 

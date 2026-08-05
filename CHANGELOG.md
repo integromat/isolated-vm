@@ -18,6 +18,19 @@
   Previously the caller received v8's bare `"illegal access"` string with no indication of what went
   wrong. Genuine `DataCloneError`s pass through unchanged, and a rejected copy no longer leaves a
   pending exception behind to poison later operations.
+- Own properties of a view are now *defined* on the copy rather than assigned to it. Assigning ran a
+  setter inherited by the destination — user code executing mid-copy, which aborted the process under
+  the transfer's `DisallowJavascriptExecutionScope` (and silently swallowed the property without it).
+  Any code that could reach `Object.prototype` in either isolate could trigger the abort.
+- Fixed a crash when a copied object carried a symbol-keyed accessor. Formatting the property name
+  for the error message stringified the key, which yields a null pointer for a symbol.
+- The accessor check now reads the property descriptor's own `get`/`set`. It walked the prototype
+  chain, so an `Object.prototype.get` left behind by other code made every plain data property look
+  like an accessor and rejected the copy.
+- Accessors *inherited* by a copied value are still ignored rather than rejected: only own properties
+  are copied, so an inherited accessor is never read. Rejecting them would fail every typed array,
+  since `parent`, `offset`, `buffer`, `byteLength`, `byteOffset` and `length` are all prototype
+  accessors.
 - `GetObjectOwnProperties()` no longer aborts the process when property enumeration fails (for
   example while the isolate is terminating); it raises instead.
 
