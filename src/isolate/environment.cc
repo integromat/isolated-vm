@@ -559,8 +559,6 @@ IsolateEnvironment::~IsolateEnvironment() {
 			ExchangeDefault(scheduler_lock->sync_interrupts);
 			ExchangeDefault(scheduler_lock->handle_tasks);
 			ExchangeDefault(scheduler_lock->tasks);
-
-            buffer_prototype.Reset();
 		}
 		{
 			std::lock_guard allocator_lock{isolate_allocator_mutex};
@@ -676,6 +674,43 @@ void IsolateEnvironment::Terminate() {
 	if (ref) {
 		ref->isolate.write()->reset();
 	}
+}
+
+namespace {
+
+/**
+ * Lazily-created, isolate-specific private symbol under which each context stores its registered
+ * `Buffer.prototype`. Like `Symbol()` in JS, but only C++ can see it — same pattern as
+ * `GetPrivateStackSymbol()` in stack_trace.cc.
+ */
+auto GetBufferPrototypeSymbol() -> Local<Private> {
+	static IsolateSpecific<Private> holder;
+	return holder.Deref([]() {
+		return Private::New(Isolate::GetCurrent());
+	});
+}
+
+} // anonymous namespace
+
+auto IsolateEnvironment::GetBufferPrototype() const -> Local<Object> {
+	auto context = isolate->GetCurrentContext();
+	if (context.IsEmpty()) {
+		return {};
+	}
+	Local<Value> value;
+	// Read from the global *proxy* — the same object `SetBufferPrototype` writes to.
+	if (!context->Global()->GetPrivate(context, GetBufferPrototypeSymbol()).ToLocal(&value) || !value->IsObject()) {
+		return {};
+	}
+	return value.As<Object>();
+}
+
+void IsolateEnvironment::SetBufferPrototype(Local<Object> value) {
+	auto context = isolate->GetCurrentContext();
+	if (context.IsEmpty()) {
+		throw RuntimeGenericError("No context is entered");
+	}
+	Unmaybe(context->Global()->SetPrivate(context, GetBufferPrototypeSymbol(), value));
 }
 
 void IsolateEnvironment::AddWeakCallback(Persistent<Value>* handle, void(*fn)(void*), void* param) {

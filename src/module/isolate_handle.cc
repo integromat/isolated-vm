@@ -442,12 +442,17 @@ auto IsolateHandle::StopCpuProfiler(v8::Local<v8::String> title) -> Local<Value>
 }
 
 /**
- * Reference count
+ * Register `Buffer.prototype` for the *current context*, enabling Node Buffer round-tripping in
+ * that context only. Must be called from inside the isolate it refers to — the prototype is a
+ * local object of that isolate and lands on the calling context's global.
  */
 auto IsolateHandle::SetBufferPrototype(Local<Object> prototype) -> Local<Value> {
 	auto env = this->isolate->GetIsolate();
 	if (!env) {
 		throw RuntimeGenericError("Isolate is disposed");
+	}
+	if (env->GetIsolate() != Isolate::GetCurrent()) {
+		throw RuntimeGenericError("`setBufferPrototype` must be called from within the isolate it belongs to");
 	}
 	env->SetBufferPrototype(prototype);
 
