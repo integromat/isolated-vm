@@ -30,7 +30,7 @@ namespace ivm {
      * transfer.
      */
     inline void CopyObjectProperties(v8::Local<v8::Context> context, v8::Local<v8::Object> target, v8::Local<v8::Object> source, v8::Local<v8::Array> property_names) {
-        v8::Isolate* isolate = context->GetIsolate();
+        v8::Isolate* isolate = v8::Isolate::GetCurrent();
 
         for (uint32_t ii = 0; ii < property_names->Length(); ++ii) {
             v8::Local<v8::Value> key = Unmaybe(property_names->Get(context, ii));
