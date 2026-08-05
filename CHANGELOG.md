@@ -1,10 +1,10 @@
 ## Unreleased
 - **Breaking:** `isolate.setBufferPrototype()` now registers the Node `Buffer` prototype **per
-context** instead of per isolate. Previously an isolate had a single prototype slot, so only the
-last registration in an isolate was effective and all contexts had to share one `Buffer` object.
-Every context that wants `Buffer` round-tripping must now call `setBufferPrototype()` itself; a
-context that doesn't copies typed arrays out as plain `Uint8Array`. This lets each context own an
-isolated `Buffer`, removing the cross-context mutation surface of a shared one.
+  context** instead of per isolate. Previously an isolate had a single prototype slot, so only the
+  last registration in an isolate was effective and all contexts had to share one `Buffer` object.
+  Every context that wants `Buffer` round-tripping must now call `setBufferPrototype()` itself; a
+  context that doesn't call it copies typed arrays out as plain `Uint8Array`. This lets each context own an
+  isolated `Buffer`, removing the cross-context mutation surface of a shared one.
 - `setBufferPrototype()` now throws if called from outside the isolate it belongs to.
 
 ## v4.3.0
