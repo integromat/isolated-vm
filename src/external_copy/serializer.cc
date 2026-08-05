@@ -9,20 +9,40 @@ namespace ivm {
  */
 ExternalCopySerialized::ExternalCopySerialized(Local<Value> value, ArrayRange transfer_list) :
 BaseSerializer{[&](ValueSerializer& serializer, Local<Context> context) {
-	// Mark ArrayBuffers as transferred, but don't actually transfer yet otherwise it will invalidate
-	// array views before they are transferred
-	int ii = 0;
-	for (auto handle : transfer_list) {
-		if (handle->IsArrayBuffer()) {
-			serializer.TransferArrayBuffer(ii++, handle.As<ArrayBuffer>());
-		} else {
-			throw RuntimeTypeError("Non-ArrayBuffer passed in `transferList`");
+	TryCatch try_catch{Isolate::GetCurrent()};
+	try {
+		// Mark ArrayBuffers as transferred, but don't actually transfer yet otherwise it will invalidate
+		// array views before they are transferred
+		int ii = 0;
+		for (auto handle : transfer_list) {
+			if (handle->IsArrayBuffer()) {
+				serializer.TransferArrayBuffer(ii++, handle.As<ArrayBuffer>());
+			} else {
+				throw RuntimeTypeError("Non-ArrayBuffer passed in `transferList`");
+			}
 		}
-	}
 
-	// Serialize object and save
-	serializer.WriteHeader();
-	Unmaybe(serializer.WriteValue(context, value));
+		// Serialize object and save
+		serializer.WriteHeader();
+		Unmaybe(serializer.WriteValue(context, value));
+	} catch (const detail::RuntimeErrorWithMessage&) {
+		// Already carries a usable message of its own.
+		throw;
+	} catch (const RuntimeError&) {
+		// A bare `RuntimeError` means v8 has an exception on deck. Under the
+		// `DisallowJavascriptExecutionScope` installed by `ExternalCopy::Copy` that exception is the
+		// bare string "illegal access", so callers catch a string with no indication of what went
+		// wrong. Swap it for a real Error; genuine DataCloneErrors are rethrown untouched.
+		Local<Value> exception = try_catch.Exception();
+		if (!exception.IsEmpty() && !exception->IsNativeError()) {
+			try_catch.Reset();
+			throw RuntimeTypeError(
+				"Value could not be copied because reading it would run user code during transfer. "
+				"Accessor properties and proxy traps are not invoked while a value is serialized.");
+		}
+		try_catch.ReThrow();
+		throw;
+	}
 }} {
 
 	// Transfer ArrayBuffers

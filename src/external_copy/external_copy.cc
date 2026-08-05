@@ -114,9 +114,13 @@ auto ExternalCopy::operator= (ExternalCopy&& that) noexcept -> ExternalCopy& {
 
 auto ExternalCopy::Copy(Local<Value> value, bool transfer_out, ArrayRange transfer_list)
 -> std::unique_ptr<ExternalCopy> {
+	v8::Isolate::DisallowJavascriptExecutionScope disallow_js(Isolate::GetCurrent(), v8::Isolate::DisallowJavascriptExecutionScope::THROW_ON_FAILURE);
+
     if (value->IsProxy()) {
         // We just unwrap target from the proxy object. This will allow us to transfer Proxies that act as a wrapper
         // for more sophisticated proxies this will be incorrect.
+        // `GetTarget` reads the internal [[ProxyTarget]] slot and does not invoke traps, so it is
+        // safe under `disallow_js` above.
         value = value.As<Proxy>()->GetTarget();
     }
 
