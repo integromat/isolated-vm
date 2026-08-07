@@ -11,15 +11,17 @@ class ExternalMemoryHandle {
 	public:
 		ExternalMemoryHandle(Local<Object> local_handle, size_t size) :
 				handle{Isolate::GetCurrent(), local_handle}, size{size} {
+			owner_env = IsolateEnvironment::GetCurrent().AddWeakCallback(&handle, WeakCallback, this);
 			handle.SetWeak(reinterpret_cast<void*>(this), &WeakCallbackV8, WeakCallbackType::kParameter);
-			IsolateEnvironment::GetCurrent().AddWeakCallback(&handle, WeakCallback, this);
 		}
 
 		ExternalMemoryHandle(const ExternalMemoryHandle&) = delete;
 		auto operator=(const ExternalMemoryHandle&) = delete;
 
 		~ExternalMemoryHandle() {
-			auto* allocator = IsolateEnvironment::GetCurrent().GetLimitedAllocator();
+			// Credit the owning isolate's allocator, not whichever happens to be current: this runs from a
+			// weak callback, which doesn't always execute with its owner current.
+			auto* allocator = owner_env->GetLimitedAllocator();
 			if (allocator != nullptr) {
 				allocator->AdjustAllocatedSize(-static_cast<ptrdiff_t>(size));
 			}
@@ -32,12 +34,14 @@ class ExternalMemoryHandle {
 
 		static void WeakCallback(void* param) {
 			auto* that = reinterpret_cast<ExternalMemoryHandle*>(param);
-			IsolateEnvironment::GetCurrent().RemoveWeakCallback(&that->handle);
+			that->owner_env->RemoveWeakCallback(&that->handle);
 			that->handle.Reset();
 			delete that;
 		}
 
 		v8::Persistent<v8::Value> handle;
+		// Environment that owns `handle`. See `IsolateEnvironment::AddWeakCallback`.
+		IsolateEnvironment* owner_env = nullptr;
 		size_t size;
 };
 

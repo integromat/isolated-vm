@@ -23,9 +23,10 @@ class ExternalHolder {
 			auto external = v8::External::New(v8::Isolate::GetCurrent(), &that->data);
 			// Construct the holder in-place
 			new(that) ExternalHolder(external, std::forward<Args>(args)...);
-			// Setup weak callbacks (technically could throw)
+			// Setup weak callbacks (technically could throw). Register before `SetWeak` so `owner_env` is set
+			// by the time a callback can fire.
+			that->owner_env = IsolateEnvironment::GetCurrent().AddWeakCallback(&that->handle, WeakCallback, that);
 			that->handle.SetWeak(reinterpret_cast<void*>(that), WeakCallbackV8, v8::WeakCallbackType::kParameter);
-			IsolateEnvironment::GetCurrent().AddWeakCallback(&that->handle, WeakCallback, that);
 			// Return local external handle
 			return external;
 		}
@@ -37,8 +38,7 @@ class ExternalHolder {
 
 		static void WeakCallback(void* param) {
 			auto* that = static_cast<ExternalHolder*>(param);
-			auto& isolate = IsolateEnvironment::GetCurrent();
-			isolate.RemoveWeakCallback(&that->handle);
+			that->owner_env->RemoveWeakCallback(&that->handle);
 			that->handle.Reset();
 			delete that;
 		}
@@ -48,6 +48,8 @@ class ExternalHolder {
 		}
 
 		v8::Persistent<v8::Value> handle;
+		// Environment that owns `handle`. See `IsolateEnvironment::AddWeakCallback`.
+		IsolateEnvironment* owner_env = nullptr;
 		Type data;
 };
 

@@ -223,11 +223,9 @@ void IsolateEnvironment::MarkSweepCompactPrologue(Isolate* /*isolate*/, GCType g
 		// Repeatedly nudging a busy child was the "child GC storm": every parent GC forced another full
 		// collect-all on it, pinning the CPU (see tests/child-gc-storm.js).
 		//
-		// Read the run status under the scheduler lock, then release it before notifying: our task runner's
-		// `PostTaskImpl` also takes the scheduler lock, so calling `MemoryPressureNotification` (which posts
-		// a task) while holding it would deadlock. A benign TOCTOU remains — the child may start running
-		// right after we release — but that at worst costs one extra notification it picks up when it yields,
-		// not a storm.
+		// Read the run status under the scheduler lock, then release it before waking. A benign TOCTOU
+		// remains — the child may start running right after we release — but that at worst costs one extra
+		// notification it picks up when it yields, not a storm.
 		bool running = false;
 		{
 			auto lock = owned_isolate->scheduler->Lock();
@@ -243,13 +241,15 @@ void IsolateEnvironment::MarkSweepCompactPrologue(Isolate* /*isolate*/, GCType g
 		// which point it's `Running` and skipped above. The net effect: an idle child is reclaimed once per
 		// genuine work cycle under sustained parent pressure, never in a tight storm.
 		if (owned_isolate->last_memory_pressure.load(std::memory_order_relaxed) != MemoryPressureLevel::kCritical) {
-			// NB: `MemoryPressureNotification` is safe to call from this non-owning (parent) thread: it
-			// detects we don't hold the child's lock and, rather than collecting inline, posts a
-			// memory-pressure GC task to the child's foreground task runner (and never blocks). Our task
-			// runner only enqueues, so an idle child would never run that task — wake it explicitly so the
-			// GC actually happens on the child's own thread.
+			// Only *record* the requested level here and wake the child; the notification itself must be
+			// delivered from the child's own thread, by `CheckMemoryPressure` in `AsyncEntry`.
+			//
+			// Never call `MemoryPressureNotification` on the child from this thread. V8 collects it inline,
+			// on the parent's thread, from inside the parent's GC prologue — which is both unsafe at the V8
+			// level (an `Executor::Scope` for the child around the call still segfaults) and runs the child's
+			// weak callbacks with the parent environment current, corrupting `weak_persistents`. See
+			// tests/parent-gc-weak-callback-env.js.
 			owned_isolate->memory_pressure.store(MemoryPressureLevel::kCritical, std::memory_order_relaxed);
-			owned_isolate->isolate->MemoryPressureNotification(MemoryPressureLevel::kCritical);
 			owned_isolate->scheduler->Lock()->WakeIsolate(owned_isolate);
 		}
 	}
@@ -352,6 +352,13 @@ void IsolateEnvironment::AsyncEntry() {
 	}
 
 	while (true) {
+		// Deliver any memory pressure the parent recorded for us in `MarkSweepCompactPrologue`, which can
+		// only store the level and wake us. The per-task `CheckMemoryPressure` below doesn't cover it: a
+		// parent-GC wake typically arrives with all queues empty, so the loop returns before running
+		// anything. Must stay outside the scheduler lock: `MemoryPressureNotification` posts a task and
+		// `PostTaskImpl` takes that same lock.
+		CheckMemoryPressure();
+
 		std::queue<unique_ptr<Runnable>> tasks;
 		std::queue<unique_ptr<Runnable>> handle_tasks;
 		std::queue<unique_ptr<Runnable>> interrupts;
@@ -713,18 +720,21 @@ void IsolateEnvironment::SetBufferPrototype(Local<Object> value) {
 	Unmaybe(context->Global()->SetPrivate(context, GetBufferPrototypeSymbol(), value));
 }
 
-void IsolateEnvironment::AddWeakCallback(Persistent<Value>* handle, void(*fn)(void*), void* param) {
+auto IsolateEnvironment::AddWeakCallback(Persistent<Value>* handle, void(*fn)(void*), void* param) -> IsolateEnvironment* {
+	assert(this == Executor::GetCurrentEnvironment());
 	if (nodejs_isolate) {
-		return;
+		return this;
 	}
 	auto it = weak_persistents.find(handle);
 	if (it != weak_persistents.end()) {
 		throw std::logic_error("Weak callback already added");
 	}
 	weak_persistents.insert(std::make_pair(handle, std::make_pair(fn, param)));
+	return this;
 }
 
 void IsolateEnvironment::RemoveWeakCallback(Persistent<Value>* handle) {
+	assert(this == Executor::GetCurrentEnvironment());
 	if (nodejs_isolate) {
 		return;
 	}

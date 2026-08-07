@@ -391,8 +391,13 @@ class IsolateEnvironment : public std::enable_shared_from_this<IsolateEnvironmen
 		/**
 		 * Since a created Isolate can be disposed of at any time we need to keep track of weak
 		 * persistents to call those destructors on isolate disposal.
+		 *
+		 * `AddWeakCallback` returns the owning environment: the holder must store it and call
+		 * `RemoveWeakCallback` on *that* environment. Resolving it again via `GetCurrent()` is a bug — a
+		 * weak callback does not always run with its owner current, and getting it wrong corrupts the heap
+		 * rather than failing loudly.
 		 */
-		void AddWeakCallback(v8::Persistent<v8::Value>* handle, void(*fn)(void*), void* param);
+		[[nodiscard]] auto AddWeakCallback(v8::Persistent<v8::Value>* handle, void(*fn)(void*), void* param) -> IsolateEnvironment*;
 		void RemoveWeakCallback(v8::Persistent<v8::Value>* handle);
 
 		/**
