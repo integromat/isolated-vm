@@ -55,6 +55,8 @@ class ClassHandle {
 	friend struct detail::ConstructorFunctionImpl;
 	private:
 		v8::Persistent<v8::Value> handle;
+		// Environment that owns `handle`. See `IsolateEnvironment::AddWeakCallback`.
+		IsolateEnvironment* owner_env = nullptr;
 
 		/**
 		 * Utility methods to set up object prototype
@@ -122,8 +124,7 @@ class ClassHandle {
 		 */
 		template <typename P, void (*F)(P*)>
 		void SetWeak(P* param) {
-			auto& isolate = IsolateEnvironment::GetCurrent();
-			isolate.AddWeakCallback(&this->handle, (void(*)(void*))F, param);
+			owner_env = IsolateEnvironment::GetCurrent().AddWeakCallback(&this->handle, (void(*)(void*))F, param);
 			handle.SetWeak(param, WeakCallback<P, F>, v8::WeakCallbackType::kParameter);
 		}
 		template <typename P, void (*F)(P*)>
@@ -135,9 +136,8 @@ class ClassHandle {
 		 * Invoked once JS loses all references to this object
 		 */
 		static void WeakCallback(void* param) {
-			auto& isolate = IsolateEnvironment::GetCurrent();
 			auto* that = reinterpret_cast<ClassHandle*>(param);
-			isolate.RemoveWeakCallback(&that->handle);
+			that->owner_env->RemoveWeakCallback(&that->handle);
 			delete that; // NOLINT
 		}
 
