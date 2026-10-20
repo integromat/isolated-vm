@@ -71,14 +71,21 @@ auto DeserializerDelegate::ReadHostObject(Isolate* isolate) -> MaybeLocal<Object
 		assert(deserializer->ReadUint32(&ii));
 
 		// Replacing std::find with a for loop for compatibility with Alpine Linux
+		bool is_view = false;
 		for (const auto& value : array_buffer_view_indexes) {
 			if (value == ii) {
 				ReadArrayBufferView(isolate, ii);
+				is_view = true;
 				break;
 			}
 		}
 
-		result = transferables[ii]->TransferIn().As<Object>();
+		auto object = transferables[ii]->TransferIn().As<Object>();
+		if (!is_view) {
+			// e.g. `derefInto()`: a live receiver object, never part of this reconstruction.
+			opaque_objects.emplace_back(isolate, object);
+		}
+		result = object;
 	});
 	return result;
 }

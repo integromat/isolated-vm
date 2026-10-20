@@ -553,7 +553,8 @@ can then be quickly copied into any isolate without any extra thread synchroniza
 		[`postMessage`](https://developer.mozilla.org/en-US/docs/Web/API/Worker/postMessage).
 	* `transferOut` *[boolean]* - If true this will release ownership of the given resource from this
 		isolate. This operation completes in constant time since it doesn't have to copy an arbitrarily
-		large object. This only applies to ArrayBuffer and TypedArray instances.
+		large object. This only applies to ArrayBuffer and TypedArray instances. Reconstructing a
+		serialized graph containing transferred buffers may still copy their storage for sanitization.
 
 Primitive values can be copied exactly as they are. Date objects will be copied as Dates.
 ArrayBuffers, TypedArrays, and DataViews will be copied in an efficient format. SharedArrayBuffers
@@ -561,6 +562,21 @@ will simply copy a reference to the existing memory and when copied into another
 SharedArrayBuffer will point to the same underlying data. After passing a SharedArrayBuffer to
 ExternalCopy for the first time isolated-vm will take over management of the underlying memory
 block, so a "copied" SharedArrayBuffer can outlive the isolate that created the memory originally.
+
+Copied views retain their original offsets, backing-buffer size, and aliasing with other views in
+that same serialized graph. Bytes outside the union of those views' ranges are zeroed before the
+result is exposed. Including the backing `ArrayBuffer` explicitly anywhere in the copied graph
+preserves all of its bytes; do not explicitly include a pooled Node Buffer's backing buffer unless
+that is intended. SharedArrayBuffers are never sanitized. The source and reusable ExternalCopy
+storage are not modified. These rules also apply to implicit copies.
+
+Sanitization audits the reconstructed graph without invoking JavaScript. Unsupported object types
+or accessor properties encountered by the audit are rejected. Graphs containing views are limited
+to 1,048,576 audited edges/roots. This limits queued traversal work, not temporary allocations:
+property-name and Map/Set entry enumeration materializes complete lists before checking the limit.
+Live objects inserted with `derefInto()` are not audited or modified. If the audit fails, a
+`transferIn` copy throws and leaves the `ExternalCopy` intact. Serialized payloads remain trusted
+internal data: they can contain backing bytes that are removed only during reconstruction.
 
 All other objects will be copied in seralized form using the [structured clone algorithm](https://developer.mozilla.org/en-US/docs/Web/API/Web_Workers_API/Structured_clone_algorithm).
 `ExternalCopy` can copy objects with deeply nested *transferable* objects. For example:

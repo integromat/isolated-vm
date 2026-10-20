@@ -55,8 +55,17 @@ class DeserializerDelegate : public SerializationDelegateBase, public v8::ValueD
 
 		auto ReadArrayBufferView(v8::Isolate* isolate, uint32_t transferable_id) -> void;
 
+		/** Record roots without publishing them; sanitize only after every root is reconstructed. */
+		void AddRoot(v8::Local<v8::Value> value) { roots.emplace_back(value); }
+		void SanitizeBuffers();
+		auto HasArrayBufferViews() const -> bool { return !array_buffer_view_indexes.empty(); }
+
 	private:
 		v8::ValueDeserializer* deserializer = nullptr;
+		std::vector<v8::Local<v8::Value>> roots;
+		// Live objects returned by non-view transferables; never part of this reconstruction. Global
+		// because ValueDeserializer::ReadValue closes its own handle scope around host object reads.
+		std::vector<v8::Global<v8::Object>> opaque_objects;
 };
 
 } // namespace detail
@@ -101,7 +110,7 @@ class BaseSerializer {
 			Unmaybe(deserializer.ReadHeader(context));
 
 			// Run implementation
-			if (!fn(deserializer, context)) {
+			if (!fn(deserializer, context, delegate)) {
 				// ValueDeserializer throws an unhelpful message when it fails to allocate an ArrayBuffer, so
 				// detect that case here and throw an appropriate message.
 				if (allocator != nullptr && allocator->GetFailureCount() != failures) {
@@ -110,6 +119,9 @@ class BaseSerializer {
 					throw RuntimeError();
 				}
 			}
+			v8::Isolate::DisallowJavascriptExecutionScope disallow_js{
+				isolate, v8::Isolate::DisallowJavascriptExecutionScope::THROW_ON_FAILURE};
+			delegate.SanitizeBuffers();
 		}
 
 	private:

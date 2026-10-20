@@ -78,13 +78,14 @@ let str = '1,2,3,4,5,6,7,8';
 		assert.throws(() => ext.copy(), /Array buffer is invalid/);
 	});
 
-	// Test sliced array
+	// Sliced arrays preserve their offsets, but unexposed backing bytes are zeroed.
 	assert.doesNotThrow(() => {
 		let view = new Uint8Array(arr);
 		let view2 = new Uint8Array(view.buffer, 4);
 		let copy = new ivm.ExternalCopy(view2).copy();
 		assert.ok(copy.length == arr.length - 4);
-		assert.strictEqual(new Uint8Array(copy.buffer).join(), str);
+		assert.strictEqual(copy.byteOffset, 4);
+		assert.strictEqual(new Uint8Array(copy.buffer).join(), '0,0,0,0,5,6,7,8');
 	});
 
 	// Transfer in one last time
