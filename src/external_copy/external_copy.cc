@@ -376,6 +376,23 @@ auto ExternalCopyArrayBuffer::Transfer(Local<ArrayBuffer> handle) -> std::unique
 	return std::make_unique<ExternalCopyArrayBuffer>(std::move(backing_store));
 }
 
+/** Allocate only the final receiver buffer; never import the retained backing store. */
+auto ExternalCopyArrayBuffer::CopyIntoPrivate() -> Local<Value> {
+	auto source = *backing_store.read();
+	if (!source) {
+		throw RuntimeGenericError("Array buffer is invalid");
+	}
+	return ExternalCopyArrayBuffer{std::move(source)}.CopyIntoCheckHeap();
+}
+
+/** Release the external store once a transfer has fully succeeded. Throws if another transfer won. */
+void ExternalCopyArrayBuffer::Consume() {
+	if (!std::exchange(*backing_store.write(), {})) {
+		throw RuntimeGenericError("Array buffer is invalid");
+	}
+	UpdateSize(0);
+}
+
 auto ExternalCopyArrayBuffer::CopyInto(bool transfer_in) -> Local<Value> {
 	if (transfer_in) {
 		auto backing_store = std::exchange(*this->backing_store.write(), {});

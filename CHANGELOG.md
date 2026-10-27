@@ -1,4 +1,9 @@
 ## Unreleased
+- **Breaking:** copied `ArrayBuffer` views no longer expose bytes outside the copied views. When a
+  copied graph contains views, bytes of their backing buffers outside the union of those views are
+  zeroed unless the backing `ArrayBuffer` itself is also part of the graph. This stops small pooled
+  Node `Buffer`s from leaking the rest of the pool. SharedArrayBuffers and objects inserted with
+  `derefInto()` are untouched. Graphs containing views are limited to 1,048,576 audited edges.
 - **Breaking:** `isolate.setBufferPrototype()` now registers the Node `Buffer` prototype **per
   context** instead of per isolate. Previously an isolate had a single prototype slot, so only the
   last registration in an isolate was effective and all contexts had to share one `Buffer` object.

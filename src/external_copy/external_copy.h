@@ -84,6 +84,9 @@ class ExternalCopyArrayBuffer : public ExternalCopyAnyBuffer {
 		explicit ExternalCopyArrayBuffer(v8::Local<v8::ArrayBuffer> handle);
 
 		static auto Transfer(v8::Local<v8::ArrayBuffer> handle) -> std::unique_ptr<ExternalCopyArrayBuffer>;
+		/** Copy into private receiver storage without consuming the external store; see Consume(). */
+		auto CopyIntoPrivate() -> v8::Local<v8::Value>;
+		void Consume();
 		auto CopyInto(bool transfer_in = false) -> v8::Local<v8::Value> final;
 };
 
